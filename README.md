@@ -1,16 +1,60 @@
-# React + Vite
+# Chat UI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A polished React + Vite chat interface built with Tailwind CSS, Radix UI primitives, and Lucide icons. The current screen is a conversational workspace mockup with a header, message feed, and composer area.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Responsive chat layout with a floating glassmorphism-style shell
+- Mock conversation data rendered as assistant and user messages
+- Composer footer with action buttons and quick status chips
+- Built with React 19, Vite, and utility-first styling
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- React
+- Vite
+- Tailwind CSS
+- Radix UI
+- Lucide React
+- Fontsource Geist, Inter, and IBM Plex Mono
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js 18+ recommended
+- npm
+
+### Install
+
+```bash
+npm install
+```
+
+### Run locally
+
+```bash
+npm run dev
+```
+
+Then open the local URL shown in the terminal.
+
+## Available Scripts
+
+- `npm run dev` - start the Vite dev server
+- `npm run build` - create a production build
+- `npm run preview` - preview the production build locally
+- `npm run lint` - run ESLint across the project
+
+## Project Structure
+
+- `src/App.jsx` - main chat UI layout and mock messages
+- `src/main.jsx` - React entry point
+- `src/index.css` - global styles
+- `src/components/ui/button.jsx` - shared button component
+- `src/assets/` - static assets used by the app
+
+## Notes
+
+- The current UI uses mock content only and does not connect to a backend.
+- The app is ready to extend with real message state, APIs, or streaming chat behavior.
