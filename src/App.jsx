@@ -37,21 +37,55 @@ function App() {
     { id: 1, role: 'assistant', name: 'Astra', time: '09:41', text: 'Ask me anything about CIS Controls v8.' }
   ])
   const [input, setInput] = useState('')
+  const [isStreaming, setIsStreaming] = useState(false)
 
   const handleSend = async () => {
-    if (!input.trim()) return
+    if (!input.trim() || isStreaming) return
+
     const userMsg = { id: Date.now(), role: 'user', name: 'You', time: now(), text: input }
     setMessages(prev => [...prev, userMsg])
     setInput('')
+    setIsStreaming(true)
+
+    const assistantId = Date.now() + 1
+    setMessages(prev => [...prev, { id: assistantId, role: 'assistant', name: 'Astra', time: now(), text: '' }])
 
     const response = await fetch('http://localhost:8000/api/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: input, top_k: 5, index: 'RAGDocs' }),
     })
-    const data = await response.json()
-    const assistantMsg = { id: Date.now() + 1, role: 'assistant', name: 'Astra', time: now(), text: data.answer ?? 'No response.' }
-    setMessages(prev => [...prev, assistantMsg])
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      let eventType = null
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          eventType = line.replace('event:', '').trim()
+        } else if (line.startsWith('data:')) {
+          const data = line.replace('data:', '')
+          if (eventType === 'token') {
+            setMessages(prev => prev.map(m =>
+              m.id === assistantId ? { ...m, text: m.text + data } : m
+            ))
+          } else if (eventType === 'metadata') {
+            console.log('metadata', JSON.parse(data))
+          }
+          eventType = null
+        }
+      }
+    }
+    setIsStreaming(false)
   }
 
   return (
@@ -91,7 +125,11 @@ function App() {
                   onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                 />
                 <div className="flex items-center gap-2">
-                  <Button onClick={handleSend} className="h-11 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800">
+                  <Button
+                    onClick={handleSend}
+                    disabled={isStreaming}
+                    className="h-11 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <SendHorizontal className="mr-2 h-4 w-4" /> Send
                   </Button>
                 </div>
