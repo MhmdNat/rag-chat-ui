@@ -1,9 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { SendHorizontal, Sparkles, CircleUserRound, Bot } from 'lucide-react'
 
 const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+
+function ThinkingIndicator() {
+  const [label, setLabel] = useState('Reading relevant documents...')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLabel('Thinking...'), 5000)
+    return () => clearTimeout(timer)
+  }, [])
+
+  return (
+    <article className="flex items-start gap-3 justify-start">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
+        <Bot className="h-5 w-5" />
+      </div>
+      <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1.5 items-center h-5">
+            {[0, 1, 2].map(i => (
+              <span
+                key={i}
+                className="h-2 w-2 rounded-full bg-slate-400 animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
+          <span className="text-xs text-slate-400 italic">{label}</span>
+        </div>
+      </div>
+    </article>
+  )
+}
 
 function Message({ message }) {
   const isUser = message.role === 'user'
@@ -45,6 +76,12 @@ function App() {
   ])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isThinking, setIsThinking] = useState(false)
+  const bottomRef = useRef(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isThinking])
 
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return
@@ -53,9 +90,9 @@ function App() {
     setMessages(prev => [...prev, userMsg])
     setInput('')
     setIsStreaming(true)
+    setIsThinking(true)
 
     const assistantId = Date.now() + 1
-    setMessages(prev => [...prev, { id: assistantId, role: 'assistant', name: 'Astra', time: now(), text: '' }])
 
     const response = await fetch('http://localhost:8000/api/query', {
       method: 'POST',
@@ -66,15 +103,14 @@ function App() {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let firstToken = true
 
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
       buffer += decoder.decode(value, { stream: true })
-
       const lines = buffer.split('\n')
       buffer = lines.pop()
-
       let eventType = null
       for (const line of lines) {
         if (line.startsWith('event:')) {
@@ -82,6 +118,11 @@ function App() {
         } else if (line.startsWith('data:')) {
           const data = line.replace('data:', '')
           if (eventType === 'token') {
+            if (firstToken) {
+              setIsThinking(false)
+              setMessages(prev => [...prev, { id: assistantId, role: 'assistant', name: 'Astra', time: now(), text: '' }])
+              firstToken = false
+            }
             setMessages(prev => prev.map(m =>
               m.id === assistantId ? { ...m, text: m.text + data } : m
             ))
@@ -93,6 +134,7 @@ function App() {
       }
     }
     setIsStreaming(false)
+    setIsThinking(false)
   }
 
   return (
@@ -118,6 +160,8 @@ function App() {
           <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
             <div className="flex flex-col gap-4">
               {messages.map(m => <Message key={m.id} message={m} />)}
+              {isThinking && <ThinkingIndicator />}
+              <div ref={bottomRef} />
             </div>
           </section>
 
@@ -137,7 +181,8 @@ function App() {
                     disabled={isStreaming}
                     className="h-11 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <SendHorizontal className="mr-2 h-4 w-4" /> Send
+                    <SendHorizontal className="mr-2 h-4 w-4" />
+                    {isStreaming ? 'Thinking...' : 'Send'}
                   </Button>
                 </div>
               </div>
