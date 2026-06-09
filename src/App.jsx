@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
 import { SendHorizontal, Sparkles, CircleUserRound, Bot } from 'lucide-react'
 
@@ -21,7 +22,13 @@ function Message({ message }) {
           <span>•</span>
           <span>{message.time}</span>
         </div>
-        <p className="text-sm leading-6">{message.text}</p>
+        {isUser ? (
+          <p className="text-sm leading-6">{message.text}</p>
+        ) : (
+          <div className="prose prose-sm max-w-none prose-p:leading-6 prose-p:my-1 prose-li:my-0 prose-headings:my-2">
+            <ReactMarkdown>{message.text}</ReactMarkdown>
+          </div>
+        )}
       </div>
       {isUser ? (
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500 text-white shadow-sm">
