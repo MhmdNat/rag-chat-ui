@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Button } from '@/components/ui/button'
-import { SendHorizontal, Sparkles, CircleUserRound, Bot, SquarePen, MessageSquare } from 'lucide-react'
+import { SendHorizontal, Sparkles, CircleUserRound, Bot, SquarePen, MessageSquare, Trash2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 
 const API = 'http://localhost:8000'
 const USER_ID = 1
@@ -52,6 +52,41 @@ function ThinkingIndicator() {
   )
 }
 
+function ContextDropdown({ context }) {
+  const [open, setOpen] = useState(false)
+
+  if (!context) return null
+
+  return (
+    <div className="mt-3 border-t border-slate-200 pt-3">
+      <button
+        onClick={() => setOpen(!open)}
+        className="rounded-lg bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200"
+      >
+        {open ? 'Hide Context' : 'Show Context'}
+      </button>
+
+      {open && (
+        <div className="mt-2 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700 space-y-3">
+          {context
+            .split('\n')
+            .filter(p => p.trim())
+            .map((p, i) => (
+              <div key={i} className="border-b border-slate-200 pb-2 last:border-none">
+                <div className="font-semibold text-slate-600 mb-1">
+                  Passage {i + 1}:
+                </div>
+                <div className="whitespace-pre-wrap">
+                  {p}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Message({ message }) {
   const isUser = message.role === 'user'
   return (
@@ -72,8 +107,11 @@ function Message({ message }) {
         {isUser ? (
           <p className="text-sm leading-6 whitespace-pre-wrap">{message.text}</p>
         ) : (
-          <div className="prose prose-sm max-w-none prose-p:leading-6 prose-p:my-1 prose-li:my-0 prose-headings:my-2">
-            <ReactMarkdown>{message.text}</ReactMarkdown>
+          <div>
+            <div className="prose prose-sm max-w-none prose-p:leading-6 prose-p:my-1 prose-li:my-0 prose-headings:my-2">
+              <ReactMarkdown>{message.text}</ReactMarkdown>
+            </div>
+            <ContextDropdown context={message.context} />
           </div>
         )}
       </div>
@@ -86,52 +124,105 @@ function Message({ message }) {
   )
 }
 
-function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, isLoadingChats }) {
+function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, isLoadingChats, collapsed, onToggleCollapse }) {
   return (
-    <aside className="flex w-64 shrink-0 flex-col gap-2 rounded-[2rem] border border-white/70 bg-white/75 p-3 shadow-[0_30px_100px_-50px_rgba(15,23,42,0.5)] backdrop-blur">
-      <div className="flex items-center justify-between px-2 py-1">
-        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Chats</span>
-        <button
-          onClick={onNewChat}
-          className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-          title="New chat"
-        >
-          <SquarePen className="h-4 w-4" />
-        </button>
-      </div>
-
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto">
-        {isLoadingChats ? (
-          <p className="px-3 py-2 text-xs text-slate-400 italic">Loading chats...</p>
-        ) : chats.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-slate-400 italic">No chats yet</p>
-        ) : (
-          chats.map(chat => (
-            <button
-              key={chat.id}
-              onClick={() => onSelectChat(chat.id)}
-              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors ${
-                chat.id === activeChatId
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
-              }`}
-            >
-              <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
-              <span className="truncate">{chat.chat_title}</span>
-            </button>
-          ))
+    <aside
+      className={`flex shrink-0 flex-col rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_30px_100px_-50px_rgba(15,23,42,0.5)] backdrop-blur transition-all duration-300 overflow-hidden ${
+        collapsed ? 'w-14 p-2' : 'w-64 p-3'
+      }`}
+    >
+      {/* Header row */}
+      <div className={`flex items-center mb-2 ${collapsed ? 'justify-center' : 'justify-between px-2 py-1'}`}>
+        {!collapsed && (
+          <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Chats</span>
         )}
-      </nav>
-
-      <div className="border-t border-slate-200/80 pt-2">
-        <button
-          onClick={onNewChat}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
-        >
-          <SquarePen className="h-4 w-4" />
-          New Chat
-        </button>
+        <div className={`flex items-center gap-1 ${collapsed ? 'flex-col gap-2' : ''}`}>
+          {!collapsed && (
+            <button
+              onClick={onNewChat}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+              title="New chat"
+            >
+              <SquarePen className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            onClick={onToggleCollapse}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
+
+      {/* Collapsed: icon-only buttons */}
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-2 mt-1">
+          <button
+            onClick={onNewChat}
+            className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
+            title="New chat"
+          >
+            <SquarePen className="h-4 w-4" />
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Chat list — scrollable, fills available space */}
+          <nav className="flex flex-1 flex-col gap-1 overflow-y-auto min-h-0">
+            {isLoadingChats ? (
+              <p className="px-3 py-2 text-xs text-slate-400 italic">Loading chats...</p>
+            ) : chats.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-slate-400 italic">No chats yet</p>
+            ) : (
+              chats.map(chat => (
+                <div
+                  key={chat.id}
+                  className={`group flex items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
+                    chat.id === activeChatId
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                  <button
+                    onClick={() => onSelectChat(chat.id)}
+                    className="flex-1 truncate text-left"
+                  >
+                    {chat.chat_title}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDeleteChat(chat.id)
+                    }}
+                    className={`shrink-0 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity ${
+                      chat.id === activeChatId
+                        ? 'hover:bg-white/20 text-white'
+                        : 'hover:bg-red-50 text-slate-400 hover:text-red-500'
+                    }`}
+                    title="Delete chat"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </nav>
+
+          {/* Footer new-chat button */}
+          <div className="border-t border-slate-200/80 pt-2 mt-2 shrink-0">
+            <button
+              onClick={onNewChat}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100"
+            >
+              <SquarePen className="h-4 w-4" />
+              New Chat
+            </button>
+          </div>
+        </>
+      )}
     </aside>
   )
 }
@@ -142,6 +233,7 @@ function App() {
   const [messages, setMessages] = useState([makeWelcomeMsg()])
   const [isLoadingChats, setIsLoadingChats] = useState(true)
   const [isLoadingMessages, setIsLoadingMessages] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
@@ -150,7 +242,6 @@ function App() {
   const tokenBufferRef = useRef('')
   const flushTimerRef = useRef(null)
 
-  // Load chats on startup
   useEffect(() => {
     const fetchChats = async () => {
       try {
@@ -176,7 +267,6 @@ function App() {
     try {
       const res = await fetch(`${API}/api/chats/${chatId}/messages?user_id=${USER_ID}`)
       const data = await res.json()
-      // Map DB message shape → UI message shape
       const mapped = data.map(m => ({
         id: m.id,
         role: m.role,
@@ -198,6 +288,22 @@ function App() {
     setMessages([makeWelcomeMsg()])
   }
 
+  const handleDeleteChat = async (chatId) => {
+    try {
+      const res = await fetch(`${API}/api/chats/${chatId}/user/${USER_ID}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Delete failed')
+      setChats(prev => prev.filter(c => c.id !== chatId))
+      if (chatId === activeChatId) {
+        setActiveChatId(null)
+        setMessages([makeWelcomeMsg()])
+      }
+    } catch (e) {
+      console.error('Failed to delete chat:', e)
+    }
+  }
+
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return
 
@@ -209,6 +315,18 @@ function App() {
     setIsThinking(true)
 
     const assistantId = Date.now() + 1
+
+    setMessages(prev => [
+      ...prev,
+      {
+        id: assistantId,
+        role: 'assistant',
+        name: 'Astra',
+        time: now(),
+        text: '',
+        context: null,
+      }
+    ])
 
     const response = await fetch(`${API}/api/query`, {
       method: 'POST',
@@ -245,7 +363,6 @@ function App() {
 
             if (firstToken) {
               setIsThinking(false)
-              setMessages(prev => [...prev, { id: assistantId, role: 'assistant', name: 'Astra', time: now(), text: '' }])
               firstToken = false
             }
 
@@ -262,12 +379,19 @@ function App() {
           } else if (eventType === 'metadata') {
             try {
               const meta = JSON.parse(raw)
+              if (meta.Context) {
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === assistantId
+                      ? { ...m, context: meta.Context }
+                      : m
+                  )
+                )
+              }
               console.log('metadata', meta)
-
               if (meta.chat_id) {
                 const backendChatId = meta.chat_id
                 if (!activeChatId) {
-                  // New chat — add to sidebar
                   const title = firstUserText.length > 40
                     ? firstUserText.slice(0, 40) + '…'
                     : firstUserText
@@ -299,10 +423,11 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
+    <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
+      <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
 
-        <header className="flex items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+        {/* Header */}
+        <header className="flex shrink-0 items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
               <Sparkles className="h-5 w-5" />
@@ -318,16 +443,25 @@ function App() {
           </div>
         </header>
 
-        <div className="flex min-h-0 flex-1 gap-3" style={{ height: 'calc(100vh - 6rem)' }}>
+        {/* Body: sidebar + chat */}
+        <div className="flex min-h-0 flex-1 gap-3">
+
+          {/* Sidebar — fixed height, does not scroll itself */}
           <Sidebar
             chats={chats}
             activeChatId={activeChatId}
             onSelectChat={handleSelectChat}
             onNewChat={handleNewChat}
+            onDeleteChat={handleDeleteChat}
             isLoadingChats={isLoadingChats}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(v => !v)}
           />
 
+          {/* Main chat panel */}
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_30px_100px_-50px_rgba(15,23,42,0.5)] backdrop-blur">
+
+            {/* Messages — only this scrolls */}
             <section className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6">
               <div className="flex flex-col gap-4">
                 {isLoadingMessages ? (
@@ -340,7 +474,8 @@ function App() {
               </div>
             </section>
 
-            <footer className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
+            {/* Input — pinned to bottom, never scrolls away */}
+            <footer className="shrink-0 border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3 shadow-inner">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                   <textarea
