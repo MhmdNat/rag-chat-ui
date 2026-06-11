@@ -5,7 +5,8 @@ import {
   SendHorizontal, Sparkles, CircleUserRound, Bot,
   SquarePen, MessageSquare, Trash2, PanelLeftClose,
   PanelLeftOpen, GraduationCap, X, ArrowRight, ArrowLeft,
-  BookOpen, ChevronDown, ThumbsUp, ThumbsDown
+  BookOpen, ChevronDown, ThumbsUp, ThumbsDown, RefreshCw,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 
 const API = 'http://localhost:8000'
@@ -23,7 +24,9 @@ const makeWelcomeMsg = () => ({
   role: 'assistant',
   name: 'Astra',
   time: now(),
-  text: 'Ask me anything about CIS Controls v8.'
+  text: 'Ask me anything about CIS Controls v8.',
+  versions: null,
+  activeVersionIndex: 0,
 })
 
 // ─── Parse context string into passages ──────────────────────────────────────
@@ -206,7 +209,6 @@ function TourOverlay({ step, total, onNext, onPrev, onClose }) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
 function ThinkingIndicator() {
   const [label, setLabel] = useState('Reading relevant documents...')
   useEffect(() => {
@@ -233,11 +235,9 @@ function ThinkingIndicator() {
   )
 }
 
-// ─── Single collapsible passage row ──────────────────────────────────────────
 function PassageRow({ number, text }) {
   const [open, setOpen] = useState(false)
   const cleanText = text.replace(/^Passage\s+\d+:\s*/i, '').trim()
-
   return (
     <div className="rounded-xl border border-slate-100 overflow-hidden">
       <button
@@ -261,13 +261,11 @@ function PassageRow({ number, text }) {
   )
 }
 
-// ─── Collapsible context section ──────────────────────────────────────────────
 function ContextDropdown({ context }) {
   const [open, setOpen] = useState(false)
   if (!context) return null
   const passages = parsePassages(context)
   if (passages.length === 0) return null
-
   return (
     <div className="mt-3 border-t border-slate-100 pt-3">
       <button
@@ -304,14 +302,14 @@ const NEGATIVE_REASONS = [
 ]
 
 function FeedbackRow({ message }) {
-  const [rating, setRating] = useState(null)       // null | 1 | 0
+  const [rating, setRating] = useState(null)
   const [showReasons, setShowReasons] = useState(false)
   const [selectedReason, setSelectedReason] = useState(null)
+  const [otherText, setOtherText] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  // Wait until the backend has returned real DB IDs via metadata
   if (!message.dbId || !message.queryDbId) return null
 
   const submitFeedback = async (finalRating, finalReason) => {
@@ -341,32 +339,17 @@ function FeedbackRow({ message }) {
     }
   }
 
-  const handleThumbsUp = () => {
-    setRating(1)
-    setShowReasons(false)
-    setSelectedReason(null)
-    submitFeedback(1, null)
-  }
-
-  const handleThumbsDown = () => {
-    setRating(0)
-    setShowReasons(true)
-    setSelectedReason(null)
-  }
-
+  const handleThumbsUp = () => { setRating(1); setShowReasons(false); setSelectedReason(null); submitFeedback(1, null) }
+  const handleThumbsDown = () => { setRating(0); setShowReasons(true); setSelectedReason(null) }
   const handleSelectReason = (reason) => {
-    setSelectedReason(reason)
-    setShowReasons(false)
-    submitFeedback(0, reason)
+    if (reason === 'Other') { setSelectedReason('Other'); return }
+    setSelectedReason(reason); setShowReasons(false); submitFeedback(0, reason)
   }
 
-  // Confirmation state after submission
   if (submitted) {
     return (
       <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-400">
-        {rating === 1
-          ? <ThumbsUp className="h-3 w-3 text-emerald-500" />
-          : <ThumbsDown className="h-3 w-3 text-red-400" />}
+        {rating === 1 ? <ThumbsUp className="h-3 w-3 text-emerald-500" /> : <ThumbsDown className="h-3 w-3 text-red-400" />}
         <span>{rating === 1 ? 'Thanks for the feedback!' : `Noted: ${selectedReason}`}</span>
       </div>
     )
@@ -374,59 +357,113 @@ function FeedbackRow({ message }) {
 
   return (
     <div className="mt-2">
-      {/* Thumb buttons */}
       <div className="flex items-center gap-1">
-        <button
-          onClick={handleThumbsUp}
-          disabled={submitting}
-          title="Good response"
-          className={`flex h-6 w-6 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${
-            rating === 1
-              ? 'bg-emerald-100 text-emerald-600'
-              : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
-          }`}
-        >
+        <button onClick={handleThumbsUp} disabled={submitting} title="Good response"
+          className={`flex h-6 w-6 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${rating === 1 ? 'bg-emerald-100 text-emerald-600' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}>
           <ThumbsUp className="h-3.5 w-3.5" />
         </button>
-        <button
-          onClick={handleThumbsDown}
-          disabled={submitting}
-          title="Bad response"
-          className={`flex h-6 w-6 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${
-            rating === 0
-              ? 'bg-red-50 text-red-400'
-              : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'
-          }`}
-        >
+        <button onClick={handleThumbsDown} disabled={submitting} title="Bad response"
+          className={`flex h-6 w-6 items-center justify-center rounded-lg transition-colors disabled:opacity-40 ${rating === 0 ? 'bg-red-50 text-red-400' : 'text-slate-300 hover:bg-slate-100 hover:text-slate-500'}`}>
           <ThumbsDown className="h-3.5 w-3.5" />
         </button>
-        {error && (
-          <span className="ml-2 text-[10px] text-red-400">{error}</span>
-        )}
+        {error && <span className="ml-2 text-[10px] text-red-400">{error}</span>}
       </div>
-
-      {/* Reason pills — shown only after thumbs down, until one is chosen */}
       {showReasons && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {NEGATIVE_REASONS.map(reason => (
-            <button
-              key={reason}
-              onClick={() => handleSelectReason(reason)}
-              disabled={submitting}
-              className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
-            >
+            <button key={reason} onClick={() => handleSelectReason(reason)} disabled={submitting}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors disabled:opacity-40 ${selectedReason === reason ? 'border-red-300 bg-red-50 text-red-600' : 'border-slate-200 bg-white text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-600'}`}>
               {reason}
             </button>
           ))}
+        </div>
+      )}
+      {selectedReason === 'Other' && (
+        <div className="mt-2 flex gap-2">
+          <input autoFocus type="text" value={otherText} onChange={e => setOtherText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && otherText.trim()) { setShowReasons(false); submitFeedback(0, otherText.trim()) } }}
+            placeholder="Describe the issue…"
+            className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
+          <button onClick={() => { if (!otherText.trim()) return; setShowReasons(false); submitFeedback(0, otherText.trim()) }}
+            disabled={submitting || !otherText.trim()}
+            className="rounded-xl bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-slate-700 disabled:opacity-40">
+            Submit
+          </button>
         </div>
       )}
     </div>
   )
 }
 
+// ─── Version navigator ────────────────────────────────────────────────────────
+/**
+ * Shows  ← 2 / 3 →  and a Regenerate button below an assistant message.
+ * Props:
+ *   activeIndex   – current 0-based index
+ *   total         – total versions count
+ *   onPrev/onNext – switch version (no network call)
+ *   onRegenerate  – trigger a new generation (network call, handled in App)
+ *   isRegenerating – bool, disables controls while streaming
+ */
+function VersionNav({ activeIndex, total, onPrev, onNext, onRegenerate, isRegenerating }) {
+  if (total <= 1 && !onRegenerate) return null
+  return (
+    <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-2">
+      {total > 1 && (
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onPrev}
+            disabled={activeIndex === 0 || isRegenerating}
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Previous version"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+          <span className="min-w-[2.5rem] text-center text-[11px] font-medium text-slate-500">
+            {activeIndex + 1} / {total}
+          </span>
+          <button
+            onClick={onNext}
+            disabled={activeIndex === total - 1 || isRegenerating}
+            className="flex h-6 w-6 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 disabled:cursor-not-allowed"
+            title="Next version"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+      {onRegenerate && (
+        <button
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Regenerate response"
+        >
+          <RefreshCw className={`h-3 w-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+          {isRegenerating ? 'Regenerating…' : 'Regenerate'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Message ──────────────────────────────────────────────────────────────────
-function Message({ message }) {
-  const isUser = message.role === 'user'
+function Message({ message, onVersionChange, onRegenerate, isRegenerating, isAnyStreaming }) {  const isUser = message.role === 'user'
+
+  // Derive the active version's data
+  const versions = message.versions  // array of {id, text, context, dbId, queryDbId, chatId} or null
+  const activeIdx = message.activeVersionIndex ?? 0
+  const activeVersion = versions ? versions[activeIdx] : null
+
+  // What we display — prefer active version data if it has content, always fall back to message.text
+  const displayText = (activeVersion?.text) || message.text
+  const displayContext = (activeVersion?.context) || message.context
+  // For FeedbackRow we build a merged object so it can read .dbId / .queryDbId / .chatId
+  const feedbackMsg = activeVersion
+    ? { ...message, ...activeVersion }
+    : message
+
   return (
     <article className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -445,10 +482,21 @@ function Message({ message }) {
         ) : (
           <div>
             <div className="prose prose-sm max-w-none prose-p:leading-6 prose-p:my-1 prose-li:my-0 prose-headings:my-2">
-              <ReactMarkdown>{message.text}</ReactMarkdown>
+              <ReactMarkdown>{displayText}</ReactMarkdown>
             </div>
-            <ContextDropdown context={message.context} />
-            <FeedbackRow message={message} />
+            <ContextDropdown context={displayContext} />
+            <FeedbackRow message={feedbackMsg} />
+            {/* Version nav — only for real assistant messages (not welcome) */}
+            {message.id !== 'welcome' && !isAnyStreaming && (
+              <VersionNav
+                activeIndex={activeIdx}
+                total={versions ? versions.length : 1}
+                onPrev={() => onVersionChange(message.id, activeIdx - 1)}
+                onNext={() => onVersionChange(message.id, activeIdx + 1)}
+                onRegenerate={() => onRegenerate(message.id)}
+                isRegenerating={isRegenerating}
+              />
+            )}
           </div>
         )}
       </div>
@@ -473,21 +521,14 @@ function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, i
         )}
         <div className={`flex items-center gap-1 ${collapsed ? 'flex-col gap-2' : ''}`}>
           {!collapsed && (
-            <button
-              data-tour="sidebar-new-chat"
-              onClick={onNewChat}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-              title="New chat"
-            >
+            <button data-tour="sidebar-new-chat" onClick={onNewChat}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900" title="New chat">
               <SquarePen className="h-4 w-4" />
             </button>
           )}
-          <button
-            data-tour="sidebar-toggle"
-            onClick={onToggleCollapse}
+          <button data-tour="sidebar-toggle" onClick={onToggleCollapse}
             className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
         </div>
@@ -513,13 +554,10 @@ function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, i
                 }`}>
                   <MessageSquare className="h-3.5 w-3.5 shrink-0 opacity-60" />
                   <button onClick={() => onSelectChat(chat.id)} className="flex-1 truncate text-left">{chat.chat_title}</button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
+                  <button onClick={(e) => { e.stopPropagation(); onDeleteChat(chat.id) }}
                     className={`shrink-0 rounded-lg p-1 opacity-0 group-hover:opacity-100 transition-opacity ${
                       chat.id === activeChatId ? 'hover:bg-white/20 text-white' : 'hover:bg-red-50 text-slate-400 hover:text-red-500'
-                    }`}
-                    title="Delete chat"
-                  >
+                    }`} title="Delete chat">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -550,6 +588,9 @@ function App() {
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
+
+  // Track which message id is currently being regenerated (null if none)
+  const [regeneratingMsgId, setRegeneratingMsgId] = useState(null)
 
   const [tourActive, setTourActive] = useState(false)
   const [tourStep, setTourStep] = useState(0)
@@ -586,17 +627,54 @@ function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isThinking])
 
+  // ── Map a raw API message (from GET /messages) to our local shape ────────
+  const mapApiMessage = (m) => {
+    // m.versions is set by the backend for assistant messages
+    if (m.role === 'assistant' && m.versions && m.versions.length > 0) {
+      const activeIdx = m.active_version_index ?? m.versions.length - 1
+      const active = m.versions[activeIdx]
+      return {
+        id: m.versions[0].id,  // stable id = root id
+        role: 'assistant',
+        name: 'Astra',
+        time: formatTime(m.created_at),
+        text: active.content,  // for legacy compat — derived from active version
+        context: null,          // context not stored in DB currently
+        // Version array in frontend shape
+        versions: m.versions.map(v => ({
+          id: v.id,
+          text: v.content,
+          context: null,
+          dbId: v.id,
+          queryDbId: null,  // not available from history load
+          chatId: m.chat_id,
+        })),
+        activeVersionIndex: activeIdx,
+        dbId: active.id,
+        queryDbId: null,
+        chatId: m.chat_id,
+      }
+    }
+    // User message or simple assistant without versions
+    return {
+      id: m.id,
+      role: m.role,
+      name: m.role === 'user' ? 'You' : 'Astra',
+      time: formatTime(m.created_at),
+      text: m.content,
+      context: null,
+      versions: m.role === 'assistant' ? [{ id: m.id, text: m.content, context: null, dbId: m.id, queryDbId: null, chatId: m.chat_id }] : null,
+      activeVersionIndex: 0,
+    }
+  }
+
   const handleSelectChat = async (chatId) => {
     setActiveChatId(chatId)
     setIsLoadingMessages(true)
     try {
       const res = await fetch(`${API}/api/chats/${chatId}/messages?user_id=${USER_ID}`)
       const data = await res.json()
-      const mapped = data.map(m => ({
-        id: m.id, role: m.role,
-        name: m.role === 'user' ? 'You' : 'Astra',
-        time: formatTime(m.created_at), text: m.content,
-      }))
+      const mapped = data.map(mapApiMessage)
       setMessages(mapped.length > 0 ? mapped : [makeWelcomeMsg()])
     } catch (e) {
       console.error('Failed to load messages:', e)
@@ -619,29 +697,18 @@ function App() {
     }
   }
 
-  const handleSend = async () => {
-    if (!input.trim() || isStreaming) return
-
-    const userMsg = { id: Date.now(), role: 'user', name: 'You', time: now(), text: input }
-    const firstUserText = input.trim()
-    setMessages(prev => [...prev, userMsg])
-    setInput('')
-    setIsStreaming(true)
-    setIsThinking(true)
-
-    const assistantId = Date.now() + 1
-    setMessages(prev => [...prev, { id: assistantId, role: 'assistant', name: 'Astra', time: now(), text: '', context: null }])
-
-    const response = await fetch(`${API}/api/query`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: input, user_id: USER_ID, chat_id: activeChatId ?? null }),
-    })
-
+  // ── Shared SSE reader — used by both handleSend and handleRegenerate ──────
+  /**
+   * Reads an SSE stream and applies tokens/metadata to a specific message id.
+   * For regeneration, `targetMsgId` is the root assistant message id and
+   * `newVersionPlaceholderIdx` is the index of the new empty version we pre-inserted.
+   */
+  const readStream = async (response, targetMsgId, isRegen = false) => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
     let firstToken = true
+    let eventType = null
 
     while (true) {
       const { done, value } = await reader.read()
@@ -649,79 +716,268 @@ function App() {
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop()
-      let eventType = null
 
       for (const line of lines) {
         if (line.startsWith('event:')) {
           eventType = line.replace('event:', '').trim()
         } else if (line.startsWith('data:')) {
           const raw = line.slice('data: '.length)
+
           if (eventType === 'token') {
-            let data
-            try { data = JSON.parse(raw).t } catch { data = raw }
-            if (firstToken) { setIsThinking(false); firstToken = false }
-            tokenBufferRef.current += data
+            let token
+            try { token = JSON.parse(raw).t } catch { token = raw }
+            if (firstToken) {
+              if (!isRegen) setIsThinking(false)
+              firstToken = false
+            }
+            tokenBufferRef.current += token
             clearTimeout(flushTimerRef.current)
             flushTimerRef.current = setTimeout(() => {
               const text = tokenBufferRef.current
               tokenBufferRef.current = ''
-              setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: m.text + text } : m))
+              setMessages(prev => prev.map(m => {
+                if (m.id !== targetMsgId) return m
+                if (isRegen) {
+                  // Append to the last version (the new placeholder)
+                  const newVersions = m.versions.map((v, i) =>
+                    i === m.versions.length - 1 ? { ...v, text: v.text + text } : v
+                  )
+                  return { ...m, versions: newVersions }
+                } else {
+                  // First response: update top-level text AND the single version
+                  const newVersions = m.versions
+                    ? m.versions.map((v, i) => i === m.activeVersionIndex ? { ...v, text: v.text + text } : v)
+                    : null
+                  return { ...m, text: m.text + text, versions: newVersions }
+                }
+              }))
             }, 60)
+
           } else if (eventType === 'metadata') {
             try {
               const meta = JSON.parse(raw)
-              if (meta.Context) {
-                setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, context: meta.Context } : m))
-              }
-              if (meta.chat_id) {
+
+              // Update chat id on new conversation
+              if (meta.chat_id && !isRegen) {
                 const backendChatId = meta.chat_id
-                if (!activeChatId) {
-                  const title = firstUserText.length > 40 ? firstUserText.slice(0, 40) + '…' : firstUserText
-                  setChats(prev => {
-                    if (prev.some(c => c.id === backendChatId)) return prev
-                    return [{ id: backendChatId, chat_title: title }, ...prev]
-                  })
-                }
+                // Store in activeChatId
                 setActiveChatId(backendChatId)
+                // Add to sidebar if new
+                setChats(prev => {
+                  if (prev.some(c => c.id === backendChatId)) return prev
+                  const title = (meta.query || '').slice(0, 40) + ((meta.query || '').length > 40 ? '…' : '')
+                  return [{ id: backendChatId, chat_title: title }, ...prev]
+                })
               }
-              // Store real DB IDs on the assistant message so FeedbackRow can use them
-              if (meta.query_message_id || meta.answer_message_id) {
-                setMessages(prev => prev.map(m =>
-                  m.id === assistantId
-                    ? {
-                        ...m,
-                        dbId: meta.answer_message_id,
-                        queryDbId: meta.query_message_id,
-                        chatId: meta.chat_id,
-                      }
-                    : m
-                ))
-              }
-            } catch { /* ignore */ }
+
+              // Attach DB ids and context to the correct version
+              setMessages(prev => prev.map(m => {
+                if (m.id !== targetMsgId) return m
+                if (isRegen) {
+                  const newVersions = m.versions.map((v, i) =>
+                    i === m.versions.length - 1
+                      ? {
+                          ...v,
+                          dbId: meta.answer_message_id,
+                          queryDbId: meta.query_message_id,
+                          chatId: meta.chat_id,
+                          context: meta.Context ?? null,
+                        }
+                      : v
+                  )
+                  return {
+                    ...m,
+                    versions: newVersions,
+                    // Mirror active version's ids to top-level for FeedbackRow compat
+                    dbId: meta.answer_message_id,
+                    queryDbId: meta.query_message_id,
+                    chatId: meta.chat_id,
+                  }
+                } else {
+                  const updatedVersions = m.versions
+                    ? m.versions.map((v, i) =>
+                        i === m.activeVersionIndex
+                          ? { ...v, dbId: meta.answer_message_id, queryDbId: meta.query_message_id, chatId: meta.chat_id, context: meta.Context ?? null }
+                          : v
+                      )
+                    : null
+                  return {
+                    ...m,
+                    context: meta.Context ?? null,
+                    dbId: meta.answer_message_id,
+                    queryDbId: meta.query_message_id,
+                    chatId: meta.chat_id,
+                    versions: updatedVersions,
+                  }
+                }
+              }))
+
+            } catch { /* ignore parse errors */ }
           }
           eventType = null
         }
       }
     }
 
+    // Flush any remaining buffered tokens
     clearTimeout(flushTimerRef.current)
     const remaining = tokenBufferRef.current
     tokenBufferRef.current = ''
     if (remaining) {
-      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, text: m.text + remaining } : m))
+      setMessages(prev => prev.map(m => {
+        if (m.id !== targetMsgId) return m
+        if (isRegen) {
+          const newVersions = m.versions.map((v, i) =>
+            i === m.versions.length - 1 ? { ...v, text: v.text + remaining } : v
+          )
+          return { ...m, versions: newVersions }
+        }
+        return { ...m, text: m.text + remaining }
+      }))
     }
-    setIsStreaming(false)
-    setIsThinking(false)
+  }
+
+  // ── Send a new message ────────────────────────────────────────────────────
+  const handleSend = async () => {
+    if (!input.trim() || isStreaming) return
+
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      name: 'You',
+      time: now(),
+      text: input,
+    }
+    const queryText = input.trim()
+    setMessages(prev => [...prev, userMsg])
+    setInput('')
+    setIsStreaming(true)
+    setIsThinking(true)
+
+    // Placeholder assistant message
+    const assistantId = Date.now() + 1
+    const placeholder = {
+      id: assistantId,
+      role: 'assistant',
+      name: 'Astra',
+      time: now(),
+      text: '',
+      context: null,
+      versions: [{ id: null, text: '', context: null, dbId: null, queryDbId: null, chatId: null }],
+      activeVersionIndex: 0,
+      dbId: null,
+      queryDbId: null,
+      chatId: null,
+    }
+    setMessages(prev => [...prev, placeholder])
+
+    try {
+      const response = await fetch(`${API}/api/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: queryText, user_id: USER_ID, chat_id: activeChatId ?? null }),
+      })
+      await readStream(response, assistantId, false)
+    } catch (e) {
+      console.error('Send error:', e)
+    } finally {
+      setIsStreaming(false)
+      setIsThinking(false)
+    }
+  }
+
+  // ── Regenerate a specific assistant message ───────────────────────────────
+  const handleRegenerate = async (msgId) => {
+    if (isStreaming || regeneratingMsgId) return
+
+    // Find the message and the user query that preceded it
+    const msgIndex = messages.findIndex(m => m.id === msgId)
+    if (msgIndex < 0) return
+
+    const msg = messages[msgIndex]
+    // Walk back to find the nearest user message
+    let userMsg = null
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { userMsg = messages[i]; break }
+    }
+    if (!userMsg) return
+
+    // rootAssistantId: prefer versions[0].dbId (persistent across sessions),
+    // fall back to msg.dbId (set from metadata in the current session).
+    const rootAssistantId = msg.versions?.[0]?.dbId || msg.dbId
+    const queryMsgDbId = msg.versions?.[0]?.queryDbId || msg.queryDbId
+
+    if (!rootAssistantId) {
+      console.warn('Regenerate blocked: DB id not available yet. Wait for the response to finish.')
+      return
+    }
+    if (!activeChatId) {
+      console.warn('Regenerate blocked: no active chat id.')
+      return
+    }
+
+    setRegeneratingMsgId(msgId)
+    setIsStreaming(true)
+
+    // Pre-insert a new empty version and switch to it
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msgId) return m
+      const newVersion = { id: null, text: '', context: null, dbId: null, queryDbId: null, chatId: null }
+      const newVersions = [...(m.versions || []), newVersion]
+      return { ...m, versions: newVersions, activeVersionIndex: newVersions.length - 1 }
+    }))
+
+    try {
+      const response = await fetch(`${API}/api/regenerate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: activeChatId,
+          user_id: USER_ID,
+          original_query: userMsg.text,
+          query_message_id: queryMsgDbId ?? 0,
+          root_assistant_message_id: rootAssistantId,
+        }),
+      })
+      await readStream(response, msgId, true)
+    } catch (e) {
+      console.error('Regeneration error:', e)
+      // Roll back the empty version on failure
+      setMessages(prev => prev.map(m => {
+        if (m.id !== msgId) return m
+        const trimmed = (m.versions || []).slice(0, -1)
+        return { ...m, versions: trimmed, activeVersionIndex: trimmed.length - 1 }
+      }))
+    } finally {
+      setIsStreaming(false)
+      setRegeneratingMsgId(null)
+    }
+  }
+
+  // ── Switch displayed version (no network call) ────────────────────────────
+  const handleVersionChange = (msgId, newIndex) => {
+    setMessages(prev => prev.map(m => {
+      if (m.id !== msgId) return m
+      const clamped = Math.max(0, Math.min(newIndex, (m.versions?.length ?? 1) - 1))
+      const active = m.versions?.[clamped]
+      return {
+        ...m,
+        activeVersionIndex: clamped,
+        // Mirror active version data to top-level fields for backward compat
+        text: active?.text ?? m.text,
+        context: active?.context ?? null,
+        dbId: active?.dbId ?? m.dbId,
+        queryDbId: active?.queryDbId ?? m.queryDbId,
+      }
+    }))
   }
 
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_35%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] text-slate-900">
       <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
 
-        <header
-          data-tour="header-brand"
-          className="flex shrink-0 items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur"
-        >
+        <header data-tour="header-brand"
+          className="flex shrink-0 items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
               <Sparkles className="h-5 w-5" />
@@ -732,12 +988,9 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              data-tour="replay-tour-btn"
-              onClick={startTour}
+            <button data-tour="replay-tour-btn" onClick={startTour}
               className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
-              title="Replay the guided tour"
-            >
+              title="Replay the guided tour">
               <GraduationCap className="h-3.5 w-3.5" />
               Tour
             </button>
@@ -766,7 +1019,16 @@ function App() {
                 {isLoadingMessages ? (
                   <p className="text-center text-sm text-slate-400 italic pt-8">Loading messages...</p>
                 ) : (
-                  messages.map(m => <Message key={m.id} message={m} />)
+                  messages.map(m => (
+                    <Message
+                      key={m.id}
+                      message={m}
+                      onVersionChange={handleVersionChange}
+                      onRegenerate={handleRegenerate}
+                      isRegenerating={regeneratingMsgId === m.id}
+                      isAnyStreaming={isStreaming}
+                    />
+                  ))
                 )}
                 {isThinking && <ThinkingIndicator />}
                 <div ref={bottomRef} />
@@ -776,8 +1038,7 @@ function App() {
             <footer className="shrink-0 border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
               <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3 shadow-inner">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <textarea
-                    data-tour="message-input"
+                  <textarea data-tour="message-input"
                     className="min-h-28 flex-1 rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 shadow-sm resize-none focus:outline-none"
                     placeholder="Type a message or ask a question..."
                     value={input}
@@ -785,12 +1046,8 @@ function App() {
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
                   />
                   <div className="flex items-center gap-2">
-                    <Button
-                      data-tour="send-button"
-                      onClick={handleSend}
-                      disabled={isStreaming}
-                      className="h-11 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
+                    <Button data-tour="send-button" onClick={handleSend} disabled={isStreaming}
+                      className="h-11 rounded-full bg-slate-900 px-5 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed">
                       <SendHorizontal className="mr-2 h-4 w-4" />
                       {isStreaming ? 'Thinking...' : 'Send'}
                     </Button>
