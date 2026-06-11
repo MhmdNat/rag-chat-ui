@@ -6,7 +6,7 @@ import {
   SquarePen, MessageSquare, Trash2, PanelLeftClose,
   PanelLeftOpen, GraduationCap, X, ArrowRight, ArrowLeft,
   BookOpen, ChevronDown, ThumbsUp, ThumbsDown, RefreshCw,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, Download, FileText
 } from 'lucide-react'
 
 const API = 'http://localhost:8000'
@@ -397,16 +397,7 @@ function FeedbackRow({ message }) {
 }
 
 // ─── Version navigator ────────────────────────────────────────────────────────
-/**
- * Shows  ← 2 / 3 →  and a Regenerate button below an assistant message.
- * Props:
- *   activeIndex   – current 0-based index
- *   total         – total versions count
- *   onPrev/onNext – switch version (no network call)
- *   onRegenerate  – trigger a new generation (network call, handled in App)
- *   isRegenerating – bool, disables controls while streaming
- */
-function VersionNav({ activeIndex, total, onPrev, onNext, onRegenerate, isRegenerating }) {
+function VersionNav({ activeIndex, total, onPrev, onNext, onRegenerate, onCompare, isRegenerating }) {
   if (total <= 1 && !onRegenerate) return null
   return (
     <div className="mt-2 flex items-center gap-2 border-t border-slate-100 pt-2">
@@ -433,36 +424,179 @@ function VersionNav({ activeIndex, total, onPrev, onNext, onRegenerate, isRegene
           </button>
         </div>
       )}
-      {onRegenerate && (
-        <button
-          onClick={onRegenerate}
-          disabled={isRegenerating}
-          className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Regenerate response"
-        >
-          <RefreshCw className={`h-3 w-3 ${isRegenerating ? 'animate-spin' : ''}`} />
-          {isRegenerating ? 'Regenerating…' : 'Regenerate'}
-        </button>
+      <div className="flex gap-1">
+        {onCompare && total >= 2 && (
+          <button
+            onClick={onCompare}
+            disabled={isRegenerating}
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-indigo-500 transition-colors hover:bg-indigo-50"
+            title="Compare versions side by side"
+          >
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            Compare
+          </button>
+        )}
+        {onRegenerate && (
+          <button
+            onClick={onRegenerate}
+            disabled={isRegenerating}
+            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Regenerate response"
+          >
+            <RefreshCw className={`h-3 w-3 ${isRegenerating ? 'animate-spin' : ''}`} />
+            {isRegenerating ? 'Regenerating…' : 'Regenerate'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Side-by-Side Comparison View ────────────────────────────────────────────
+function ComparisonView({ message, versions, onClose, onSelectVersion, onRegenerateVersion }) {
+  const [leftIdx, setLeftIdx] = useState(0)
+  const [rightIdx, setRightIdx] = useState(Math.min(1, versions.length - 1))
+  const [showLeftMenu, setShowLeftMenu] = useState(false)
+  const [showRightMenu, setShowRightMenu] = useState(false)
+
+  const totalVersions = versions.length
+
+  const VersionSelector = ({ currentIdx, onSelect, showMenu, setShowMenu }) => (
+    <div className="relative">
+      <button
+        onClick={() => setShowMenu(!showMenu)}
+        className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+      >
+        Version {currentIdx + 1}
+        <ChevronDown className="h-3 w-3" />
+      </button>
+      {showMenu && (
+        <div className="absolute top-full left-0 mt-1 z-20 min-w-[120px] rounded-lg border border-slate-200 bg-white shadow-lg">
+          {Array.from({ length: totalVersions }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { onSelect(i); setShowMenu(false) }}
+              className={`block w-full px-3 py-2 text-left text-xs hover:bg-slate-50 ${
+                i === currentIdx ? 'bg-indigo-50 text-indigo-600 font-medium' : 'text-slate-600'
+              }`}
+            >
+              Version {i + 1}
+              {i === currentIdx && ' ✓'}
+            </button>
+          ))}
+        </div>
       )}
+    </div>
+  )
+
+  // Safely get text for a version, falling back to "No content"
+  const getVersionText = (idx) => versions[idx]?.text || 'No content'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-6xl max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
+          <h3 className="text-base font-semibold text-slate-800 flex items-center gap-2">
+            <svg className="h-5 w-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            Compare Responses
+          </h3>
+          <button onClick={onClose} className="rounded-lg p-1 hover:bg-slate-200 transition-colors">
+            <X className="h-5 w-5 text-slate-500" />
+          </button>
+        </div>
+
+        {/* Comparison Grid */}
+        <div className="grid grid-cols-2 gap-4 p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          {/* Left Panel */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3">
+              <VersionSelector
+                currentIdx={leftIdx}
+                onSelect={(idx) => { setLeftIdx(idx); setShowLeftMenu(false) }}
+                showMenu={showLeftMenu}
+                setShowMenu={setShowLeftMenu}
+              />
+              <button
+                onClick={() => onSelectVersion(message.id, leftIdx)}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+                title="Use this version as active"
+              >
+                Use this →
+              </button>
+            </div>
+            <div className="p-4 prose prose-sm max-w-none flex-1">
+              <ReactMarkdown>{getVersionText(leftIdx)}</ReactMarkdown>
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
+              <button
+                onClick={() => onRegenerateVersion(message.id, leftIdx)}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Regenerate this version
+              </button>
+            </div>
+          </div>
+
+          {/* Right Panel */}
+          <div className="rounded-xl border border-slate-200 bg-white overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3">
+              <VersionSelector
+                currentIdx={rightIdx}
+                onSelect={(idx) => { setRightIdx(idx); setShowRightMenu(false) }}
+                showMenu={showRightMenu}
+                setShowMenu={setShowRightMenu}
+              />
+              <button
+                onClick={() => onSelectVersion(message.id, rightIdx)}
+                className="rounded-lg px-2 py-1 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+              >
+                Use this →
+              </button>
+            </div>
+            <div className="p-4 prose prose-sm max-w-none flex-1">
+              <ReactMarkdown>{getVersionText(rightIdx)}</ReactMarkdown>
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-2">
+              <button
+                onClick={() => onRegenerateVersion(message.id, rightIdx)}
+                className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+              >
+                <RefreshCw className="h-3 w-3" />
+                Regenerate this version
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-slate-200 bg-slate-50 px-6 py-3 flex justify-end">
+          <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 transition-colors">
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 // ─── Message ──────────────────────────────────────────────────────────────────
-function Message({ message, onVersionChange, onRegenerate, isRegenerating, isAnyStreaming }) {  const isUser = message.role === 'user'
+function Message({ message, onVersionChange, onRegenerate, onCompare, isRegenerating, isAnyStreaming }) {
+  const isUser = message.role === 'user'
 
-  // Derive the active version's data
-  const versions = message.versions  // array of {id, text, context, dbId, queryDbId, chatId} or null
+  const versions = message.versions
   const activeIdx = message.activeVersionIndex ?? 0
   const activeVersion = versions ? versions[activeIdx] : null
 
-  // What we display — prefer active version data if it has content, always fall back to message.text
-  const displayText = (activeVersion?.text) || message.text
+  // Display text: prefer active version's text, otherwise fallback to message.text
+  const displayText = (activeVersion?.text) || message.text || ''
   const displayContext = (activeVersion?.context) || message.context
-  // For FeedbackRow we build a merged object so it can read .dbId / .queryDbId / .chatId
-  const feedbackMsg = activeVersion
-    ? { ...message, ...activeVersion }
-    : message
+  const feedbackMsg = activeVersion ? { ...message, ...activeVersion } : message
 
   return (
     <article className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -486,7 +620,6 @@ function Message({ message, onVersionChange, onRegenerate, isRegenerating, isAny
             </div>
             <ContextDropdown context={displayContext} />
             <FeedbackRow message={feedbackMsg} />
-            {/* Version nav — only for real assistant messages (not welcome) */}
             {message.id !== 'welcome' && !isAnyStreaming && (
               <VersionNav
                 activeIndex={activeIdx}
@@ -494,6 +627,7 @@ function Message({ message, onVersionChange, onRegenerate, isRegenerating, isAny
                 onPrev={() => onVersionChange(message.id, activeIdx - 1)}
                 onNext={() => onVersionChange(message.id, activeIdx + 1)}
                 onRegenerate={() => onRegenerate(message.id)}
+                onCompare={versions && versions.length >= 2 ? () => onCompare(message.id, versions, message.text) : null}
                 isRegenerating={isRegenerating}
               />
             )}
@@ -576,6 +710,135 @@ function Sidebar({ chats, activeChatId, onSelectChat, onNewChat, onDeleteChat, i
   )
 }
 
+// ─── Export helpers ───────────────────────────────────────────────────────────
+function buildExportMessages(messages) {
+  return messages.filter(m => m.id !== 'welcome' && m.role !== undefined)
+}
+
+function exportAsMarkdown(messages, chatTitle) {
+  const lines = []
+  lines.push(`# ${chatTitle || 'Astra Chat Export'}`)
+  lines.push(`*Exported on ${new Date().toLocaleString()}*`)
+  lines.push('')
+
+  buildExportMessages(messages).forEach(m => {
+    const activeVersion = m.versions ? m.versions[m.activeVersionIndex ?? 0] : null
+    const text = activeVersion?.text || m.text
+    if (m.role === 'user') {
+      lines.push(`## You — ${m.time}`)
+      lines.push(text)
+    } else {
+      lines.push(`## Astra — ${m.time}`)
+      lines.push(text)
+    }
+    lines.push('')
+  })
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${chatTitle || 'astra-chat'}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function exportAsPDF(messages, chatTitle) {
+  const printWindow = window.open('', '_blank')
+  const rows = buildExportMessages(messages).map(m => {
+    const activeVersion = m.versions ? m.versions[m.activeVersionIndex ?? 0] : null
+    const text = (activeVersion?.text || m.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const html = text
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/\n/g, '<br/>')
+    const isUser = m.role === 'user'
+    return `
+      <div class="msg ${isUser ? 'user' : 'assistant'}">
+        <div class="meta">${isUser ? 'You' : 'Astra'} · ${m.time}</div>
+        <div class="text">${html}</div>
+      </div>`
+  }).join('')
+
+  printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>${chatTitle || 'Astra Chat'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 40px auto; padding: 0 24px; color: #1e293b; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #94a3b8; margin-bottom: 32px; }
+    .msg { margin-bottom: 24px; }
+    .meta { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; color: #94a3b8; margin-bottom: 6px; }
+    .user .text { background: #0f172a; color: white; padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6; display: inline-block; max-width: 80%; }
+    .assistant .text { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px 16px; border-radius: 16px; font-size: 14px; line-height: 1.6; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    h2, h3 { margin: 8px 0 4px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <h1>${chatTitle || 'Astra Chat Export'}</h1>
+  <div class="subtitle">Exported on ${new Date().toLocaleString()}</div>
+  ${rows}
+  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close() }<\/script>
+</body>
+</html>`)
+  printWindow.document.close()
+}
+
+// ─── Export dropdown button ───────────────────────────────────────────────────
+function ExportMenu({ messages, chatTitle, disabled }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        disabled={disabled}
+        className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Export chat"
+      >
+        <Download className="h-3.5 w-3.5" />
+        Export
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden">
+          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            Export as
+          </div>
+          <button
+            onClick={() => { exportAsMarkdown(messages, chatTitle); setOpen(false) }}
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <FileText className="h-4 w-4 text-slate-400" />
+            Markdown (.md)
+          </button>
+          <button
+            onClick={() => { exportAsPDF(messages, chatTitle); setOpen(false) }}
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            <Download className="h-4 w-4 text-slate-400" />
+            PDF
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const [chats, setChats] = useState([])
@@ -588,9 +851,14 @@ function App() {
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [isThinking, setIsThinking] = useState(false)
-
-  // Track which message id is currently being regenerated (null if none)
   const [regeneratingMsgId, setRegeneratingMsgId] = useState(null)
+
+  const [comparisonMode, setComparisonMode] = useState({
+    active: false,
+    messageId: null,
+    versions: null,
+    onSelectVersion: null,
+  })
 
   const [tourActive, setTourActive] = useState(false)
   const [tourStep, setTourStep] = useState(0)
@@ -627,26 +895,23 @@ function App() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isThinking])
 
-  // ── Map a raw API message (from GET /messages) to our local shape ────────
   const mapApiMessage = (m) => {
-    // m.versions is set by the backend for assistant messages
     if (m.role === 'assistant' && m.versions && m.versions.length > 0) {
       const activeIdx = m.active_version_index ?? m.versions.length - 1
       const active = m.versions[activeIdx]
       return {
-        id: m.versions[0].id,  // stable id = root id
+        id: m.versions[0].id,
         role: 'assistant',
         name: 'Astra',
         time: formatTime(m.created_at),
-        text: active.content,  // for legacy compat — derived from active version
-        context: null,          // context not stored in DB currently
-        // Version array in frontend shape
+        text: active.content,
+        context: null,
         versions: m.versions.map(v => ({
           id: v.id,
           text: v.content,
           context: null,
           dbId: v.id,
-          queryDbId: null,  // not available from history load
+          queryDbId: null,
           chatId: m.chat_id,
         })),
         activeVersionIndex: activeIdx,
@@ -655,7 +920,6 @@ function App() {
         chatId: m.chat_id,
       }
     }
-    // User message or simple assistant without versions
     return {
       id: m.id,
       role: m.role,
@@ -697,18 +961,13 @@ function App() {
     }
   }
 
-  // ── Shared SSE reader — used by both handleSend and handleRegenerate ──────
-  /**
-   * Reads an SSE stream and applies tokens/metadata to a specific message id.
-   * For regeneration, `targetMsgId` is the root assistant message id and
-   * `newVersionPlaceholderIdx` is the index of the new empty version we pre-inserted.
-   */
   const readStream = async (response, targetMsgId, isRegen = false) => {
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
     let firstToken = true
     let eventType = null
+    let firstTokenForRegen = isRegen
 
     while (true) {
       const { done, value } = await reader.read()
@@ -738,13 +997,16 @@ function App() {
               setMessages(prev => prev.map(m => {
                 if (m.id !== targetMsgId) return m
                 if (isRegen) {
-                  // Append to the last version (the new placeholder)
                   const newVersions = m.versions.map((v, i) =>
                     i === m.versions.length - 1 ? { ...v, text: v.text + text } : v
                   )
-                  return { ...m, versions: newVersions }
+                  let newActiveIndex = m.activeVersionIndex
+                  if (firstTokenForRegen) {
+                    newActiveIndex = m.versions.length - 1
+                    firstTokenForRegen = false
+                  }
+                  return { ...m, versions: newVersions, activeVersionIndex: newActiveIndex }
                 } else {
-                  // First response: update top-level text AND the single version
                   const newVersions = m.versions
                     ? m.versions.map((v, i) => i === m.activeVersionIndex ? { ...v, text: v.text + text } : v)
                     : null
@@ -756,13 +1018,9 @@ function App() {
           } else if (eventType === 'metadata') {
             try {
               const meta = JSON.parse(raw)
-
-              // Update chat id on new conversation
               if (meta.chat_id && !isRegen) {
                 const backendChatId = meta.chat_id
-                // Store in activeChatId
                 setActiveChatId(backendChatId)
-                // Add to sidebar if new
                 setChats(prev => {
                   if (prev.some(c => c.id === backendChatId)) return prev
                   const title = (meta.query || '').slice(0, 40) + ((meta.query || '').length > 40 ? '…' : '')
@@ -770,25 +1028,17 @@ function App() {
                 })
               }
 
-              // Attach DB ids and context to the correct version
               setMessages(prev => prev.map(m => {
                 if (m.id !== targetMsgId) return m
                 if (isRegen) {
                   const newVersions = m.versions.map((v, i) =>
                     i === m.versions.length - 1
-                      ? {
-                          ...v,
-                          dbId: meta.answer_message_id,
-                          queryDbId: meta.query_message_id,
-                          chatId: meta.chat_id,
-                          context: meta.Context ?? null,
-                        }
+                      ? { ...v, dbId: meta.answer_message_id, queryDbId: meta.query_message_id, chatId: meta.chat_id, context: meta.Context ?? null }
                       : v
                   )
                   return {
                     ...m,
                     versions: newVersions,
-                    // Mirror active version's ids to top-level for FeedbackRow compat
                     dbId: meta.answer_message_id,
                     queryDbId: meta.query_message_id,
                     chatId: meta.chat_id,
@@ -811,15 +1061,13 @@ function App() {
                   }
                 }
               }))
-
-            } catch { /* ignore parse errors */ }
+            } catch { /* ignore */ }
           }
           eventType = null
         }
       }
     }
 
-    // Flush any remaining buffered tokens
     clearTimeout(flushTimerRef.current)
     const remaining = tokenBufferRef.current
     tokenBufferRef.current = ''
@@ -837,7 +1085,6 @@ function App() {
     }
   }
 
-  // ── Send a new message ────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!input.trim() || isStreaming) return
 
@@ -854,7 +1101,6 @@ function App() {
     setIsStreaming(true)
     setIsThinking(true)
 
-    // Placeholder assistant message
     const assistantId = Date.now() + 1
     const placeholder = {
       id: assistantId,
@@ -886,45 +1132,35 @@ function App() {
     }
   }
 
-  // ── Regenerate a specific assistant message ───────────────────────────────
   const handleRegenerate = async (msgId) => {
     if (isStreaming || regeneratingMsgId) return
 
-    // Find the message and the user query that preceded it
     const msgIndex = messages.findIndex(m => m.id === msgId)
     if (msgIndex < 0) return
-
     const msg = messages[msgIndex]
-    // Walk back to find the nearest user message
     let userMsg = null
     for (let i = msgIndex - 1; i >= 0; i--) {
       if (messages[i].role === 'user') { userMsg = messages[i]; break }
     }
     if (!userMsg) return
 
-    // rootAssistantId: prefer versions[0].dbId (persistent across sessions),
-    // fall back to msg.dbId (set from metadata in the current session).
     const rootAssistantId = msg.versions?.[0]?.dbId || msg.dbId
     const queryMsgDbId = msg.versions?.[0]?.queryDbId || msg.queryDbId
 
-    if (!rootAssistantId) {
-      console.warn('Regenerate blocked: DB id not available yet. Wait for the response to finish.')
-      return
-    }
-    if (!activeChatId) {
-      console.warn('Regenerate blocked: no active chat id.')
+    if (!rootAssistantId || !activeChatId) {
+      console.warn('Regenerate blocked: missing ids')
       return
     }
 
     setRegeneratingMsgId(msgId)
     setIsStreaming(true)
 
-    // Pre-insert a new empty version and switch to it
+    // Add new empty version but keep active index unchanged
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId) return m
       const newVersion = { id: null, text: '', context: null, dbId: null, queryDbId: null, chatId: null }
       const newVersions = [...(m.versions || []), newVersion]
-      return { ...m, versions: newVersions, activeVersionIndex: newVersions.length - 1 }
+      return { ...m, versions: newVersions }  // activeVersionIndex unchanged
     }))
 
     try {
@@ -942,11 +1178,11 @@ function App() {
       await readStream(response, msgId, true)
     } catch (e) {
       console.error('Regeneration error:', e)
-      // Roll back the empty version on failure
+      // Rollback: remove the empty version
       setMessages(prev => prev.map(m => {
         if (m.id !== msgId) return m
         const trimmed = (m.versions || []).slice(0, -1)
-        return { ...m, versions: trimmed, activeVersionIndex: trimmed.length - 1 }
+        return { ...m, versions: trimmed }
       }))
     } finally {
       setIsStreaming(false)
@@ -954,22 +1190,56 @@ function App() {
     }
   }
 
-  // ── Switch displayed version (no network call) ────────────────────────────
   const handleVersionChange = (msgId, newIndex) => {
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId) return m
       const clamped = Math.max(0, Math.min(newIndex, (m.versions?.length ?? 1) - 1))
       const active = m.versions?.[clamped]
+      // Safety: if active version has no text but message.text does, restore it
+      if (active && !active.text && m.text) {
+        const updatedVersions = [...m.versions]
+        updatedVersions[clamped] = { ...active, text: m.text }
+        return {
+          ...m,
+          versions: updatedVersions,
+          activeVersionIndex: clamped,
+          text: m.text,
+          context: active?.context ?? m.context,
+          dbId: active?.dbId ?? m.dbId,
+          queryDbId: active?.queryDbId ?? m.queryDbId,
+        }
+      }
       return {
         ...m,
         activeVersionIndex: clamped,
-        // Mirror active version data to top-level fields for backward compat
         text: active?.text ?? m.text,
         context: active?.context ?? null,
         dbId: active?.dbId ?? m.dbId,
         queryDbId: active?.queryDbId ?? m.queryDbId,
       }
     }))
+  }
+
+  const handleOpenComparison = (msgId, versions, currentText) => {
+    // Ensure each version has a non-empty text (fallback to currentText if empty)
+    const enrichedVersions = versions.map((v, idx) => ({
+      ...v,
+      text: v.text || (idx === messages.find(m => m.id === msgId)?.activeVersionIndex ? currentText : '')
+    }))
+    setComparisonMode({
+      active: true,
+      messageId: msgId,
+      versions: enrichedVersions,
+      onSelectVersion: (id, idx) => {
+        handleVersionChange(id, idx)
+        setComparisonMode(prev => ({ ...prev, active: false, versions: null }))
+      }
+    })
+  }
+
+  const handleRegenerateVersionFromComparison = (msgId, versionIdx) => {
+    setComparisonMode({ active: false, messageId: null, versions: null, onSelectVersion: null })
+    handleRegenerate(msgId)
   }
 
   return (
@@ -988,6 +1258,11 @@ function App() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <ExportMenu
+              messages={messages}
+              chatTitle={chats.find(c => c.id === activeChatId)?.chat_title}
+              disabled={messages.length <= 1 || isStreaming}
+            />
             <button data-tour="replay-tour-btn" onClick={startTour}
               className="hidden sm:flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
               title="Replay the guided tour">
@@ -1025,6 +1300,7 @@ function App() {
                       message={m}
                       onVersionChange={handleVersionChange}
                       onRegenerate={handleRegenerate}
+                      onCompare={handleOpenComparison}
                       isRegenerating={regeneratingMsgId === m.id}
                       isAnyStreaming={isStreaming}
                     />
@@ -1066,6 +1342,19 @@ function App() {
           onNext={() => setTourStep(s => s + 1)}
           onPrev={() => setTourStep(s => s - 1)}
           onClose={endTour}
+        />
+      )}
+
+      {comparisonMode.active && comparisonMode.versions && (
+        <ComparisonView
+          message={{ id: comparisonMode.messageId }}
+          versions={comparisonMode.versions}
+          onClose={() => setComparisonMode({ active: false, messageId: null, versions: null, onSelectVersion: null })}
+          onSelectVersion={(msgId, versionIdx) => {
+            handleVersionChange(msgId, versionIdx)
+            setComparisonMode({ active: false, messageId: null, versions: null, onSelectVersion: null })
+          }}
+          onRegenerateVersion={handleRegenerateVersionFromComparison}
         />
       )}
     </div>
