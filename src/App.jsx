@@ -792,7 +792,7 @@ function exportAsPDF(messages, chatTitle) {
   printWindow.document.close()
 }
 
-// ─── Export dropdown button ───────────────────────────────────────────────────
+// ─── Export dropdown button (FIXED) ───────────────────────────────────────────
 function ExportMenu({ messages, chatTitle, disabled }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -815,13 +815,12 @@ function ExportMenu({ messages, chatTitle, disabled }) {
         Export
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden">
-          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl z-[100] overflow-visible"><div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 border-b border-slate-100">
             Export as
           </div>
           <button
             onClick={() => { exportAsMarkdown(messages, chatTitle); setOpen(false) }}
-            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+            className="flex w-full items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
           >
             <FileText className="h-4 w-4 text-slate-400" />
             Markdown (.md)
@@ -1247,7 +1246,7 @@ function App() {
       <div className="mx-auto flex h-full w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
 
         <header data-tour="header-brand"
-          className="flex shrink-0 items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
+          className="relative z-50 flex shrink-0 items-center justify-between rounded-3xl border border-white/70 bg-white/80 px-4 py-3 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.35)] backdrop-blur">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
               <Sparkles className="h-5 w-5" />
