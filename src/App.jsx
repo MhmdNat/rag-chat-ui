@@ -311,11 +311,12 @@ function FeedbackRow({ message }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  if (!message.dbId || (!message.queryDbId && !message.feedback)) return null
+  if (!message.dbId) return null
   const submitFeedback = async (finalRating, finalReason) => {
     setSubmitting(true)
     setError(null)
     try {
+      if (!message.queryDbId) return
       const res = await fetch(`${API}/api/feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -329,8 +330,7 @@ function FeedbackRow({ message }) {
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to submit feedback')
-      }
+        throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) || 'Failed to submit feedback')      }
       setSubmitted(true)
     } catch (e) {
       setError(e.message)
@@ -596,7 +596,7 @@ function Message({ message, onVersionChange, onRegenerate, onCompare, isRegenera
   // Display text: prefer active version's text, otherwise fallback to message.text
   const displayText = (activeVersion?.text) || message.text || ''
   const displayContext = (activeVersion?.context) || message.context
-  const feedbackMsg = activeVersion ? { ...message, ...activeVersion, feedback: message.feedback } : message
+  const feedbackMsg = activeVersion ? { ...message, ...activeVersion, feedback: message.feedback, chatId: message.chatId, queryDbId: message.queryDbId } : message
   return (
     <article className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -894,6 +894,8 @@ function App() {
   }, [messages, isThinking])
 
   const mapApiMessage = (m) => {
+    console.log('mapApiMessage raw:', m.role, { id: m.id, query_message_id: m.query_message_id, feedback: m.feedback })
+
     if (m.role === 'assistant' && m.versions && m.versions.length > 0) {
       const activeIdx = m.active_version_index ?? m.versions.length - 1
       const active = m.versions[activeIdx]
@@ -909,12 +911,12 @@ function App() {
           text: v.content,
           context: null,
           dbId: v.id,
-          queryDbId: null,
+          queryDbId: m.query_message_id ?? null,
           chatId: m.chat_id,
         })),
         activeVersionIndex: activeIdx,
         dbId: active.id,
-        queryDbId: null,
+        queryDbId: m.query_message_id ?? null,
         chatId: m.chat_id,
         feedback: m.feedback ?? null,
       }
@@ -926,7 +928,7 @@ function App() {
       time: formatTime(m.created_at),
       text: m.content,
       context: null,
-      versions: m.role === 'assistant' ? [{ id: m.id, text: m.content, context: null, dbId: m.id, queryDbId: null, chatId: m.chat_id }] : null,
+      versions: m.role === 'assistant' ? [{ id: m.id, text: m.content, context: null, dbId: m.id, queryDbId: m.query_message_id ?? null, chatId: m.chat_id }] : null,
       activeVersionIndex: 0,
       feedback: m.feedback ?? null,
     }
