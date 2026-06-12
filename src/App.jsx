@@ -302,16 +302,16 @@ const NEGATIVE_REASONS = [
 ]
 
 function FeedbackRow({ message }) {
-  const [rating, setRating] = useState(null)
+  const existing = message.feedback
+  const [rating, setRating] = useState(existing?.rating ?? null)
   const [showReasons, setShowReasons] = useState(false)
-  const [selectedReason, setSelectedReason] = useState(null)
+  const [selectedReason, setSelectedReason] = useState(existing?.reason ?? null)
   const [otherText, setOtherText] = useState('')
-  const [submitted, setSubmitted] = useState(false)
+  const [submitted, setSubmitted] = useState(existing != null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
-  if (!message.dbId || !message.queryDbId) return null
-
+  if (!message.dbId || (!message.queryDbId && !message.feedback)) return null
   const submitFeedback = async (finalRating, finalReason) => {
     setSubmitting(true)
     setError(null)
@@ -596,8 +596,7 @@ function Message({ message, onVersionChange, onRegenerate, onCompare, isRegenera
   // Display text: prefer active version's text, otherwise fallback to message.text
   const displayText = (activeVersion?.text) || message.text || ''
   const displayContext = (activeVersion?.context) || message.context
-  const feedbackMsg = activeVersion ? { ...message, ...activeVersion } : message
-
+  const feedbackMsg = activeVersion ? { ...message, ...activeVersion, feedback: message.feedback } : message
   return (
     <article className={`flex items-start gap-3 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {!isUser && (
@@ -917,6 +916,7 @@ function App() {
         dbId: active.id,
         queryDbId: null,
         chatId: m.chat_id,
+        feedback: m.feedback ?? null,
       }
     }
     return {
@@ -928,6 +928,7 @@ function App() {
       context: null,
       versions: m.role === 'assistant' ? [{ id: m.id, text: m.content, context: null, dbId: m.id, queryDbId: null, chatId: m.chat_id }] : null,
       activeVersionIndex: 0,
+      feedback: m.feedback ?? null,
     }
   }
 
