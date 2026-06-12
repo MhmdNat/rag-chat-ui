@@ -815,7 +815,7 @@ function ExportMenu({ messages, chatTitle, disabled }) {
         Export
       </button>
       {open && (
-          <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl z-[100] overflow-visible">          <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 border-b border-slate-100">
+            <div className="absolute right-0 top-full mt-1.5 w-44 rounded-2xl border border-slate-200 bg-white shadow-xl z-[100] overflow-visible"><div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400 border-b border-slate-100">
             Export as
           </div>
           <button
